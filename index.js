@@ -9,11 +9,12 @@ const app = express()
 const PORT = process.env.PORT || 4000
 app.use(express.json())
 app.use(cors());
+
 app.post('/register', async (req, resp) => {
     let user = new User(req.body);
     let result = await user.save()
     result = result.toObject();
-    
+
     delete result.password;
     jwt.sign({ result }, jwtkey, { expiresIn: "2h" }, (err, token) => {
         if (err) {
@@ -43,13 +44,13 @@ app.post('/login', async (req, resp) => {
     }
 })
 
-app.post("/add-product", async (req, resp) => {
+app.post("/add-product", verifyToken,async (req, resp) => {
     let product = new Product(req.body);
     let result = await product.save();
     resp.send(result)
 })
 
-app.get("/products", async (req, resp) => {
+app.get("/products",verifyToken, async (req, resp) => {
     let products = await Product.find();
     if (products.length > 0) {
         resp.send(products)
@@ -58,12 +59,12 @@ app.get("/products", async (req, resp) => {
     }
 })
 
-app.delete('/products/:id', async (req, resp) => {
+app.delete('/products/:id',verifyToken, async (req, resp) => {
     const result = await Product.deleteOne({ _id: req.params.id });
     resp.send(result);
 })
 
-app.get('/product/:id', async (req, resp) => {
+app.get('/product/:id',verifyToken, async (req, resp) => {
     let result = await Product.findOne({ _id: req.params.id });
     if (result) {
         resp.send(result);
@@ -72,7 +73,7 @@ app.get('/product/:id', async (req, resp) => {
     }
 })
 
-app.put('/product/:id', async (req, resp) => {
+app.put('/product/:id',verifyToken, async (req, resp) => {
     let result = await Product.updateOne(
         { _id: req.params.id },
         {
@@ -82,7 +83,7 @@ app.put('/product/:id', async (req, resp) => {
     resp.send(result)
 })
 
-app.get('/search/:key', async (req, resp) => {
+app.get('/search/:key', verifyToken, async (req, resp) => {
     let result = await Product.find({
         "$or": [
             { name: { $regex: req.params.key } },
@@ -92,10 +93,25 @@ app.get('/search/:key', async (req, resp) => {
         ]
     })
     resp.send(result)
-})
-// function varifyToken(req,resp,next){
-    
-// }
+});
 
+function verifyToken(req, resp, next) {
+    let token = req.headers['authorization'];
+    if (token) {
+        token = token.split(' ')[1];
+        // console.log("middleware called", token)
+        jwt.verify(token, jwtkey, (err, valid) => {
+            if (err) {
+                resp.status(401).send({ result: "Please provide valid token " })
+            }
+            else {
+                next()
+            }
+        })
+    }
+    else {
+        resp.status(403).send({ result: "Please add token with header" })
+    }
+}
 
-app.listen(`${PORT}`)
+app.listen(`${PORT}`, () => console.log(PORT, "connection done"));
